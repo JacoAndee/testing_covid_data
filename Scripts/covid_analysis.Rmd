@@ -1,0 +1,174 @@
+---
+title: "COVID-19 Data Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+**Author: Jacob Anderson**
+
+```{r Setting Seed - For reproducability}
+
+set.seed(1)
+
+```
+
+```{r Task 1 - Import Necessary Packages - 5 Points}
+
+### Import Packages: arcgisbinding, sf, ggridges, ggplot2, reshape2
+
+library(arcgisbinding)
+library(sf)
+library(ggridges)
+library(ggplot2)
+library(reshape2)
+arc.check_product()
+```
+
+```{r Task 2 - Read the COVID-19 Metadata}
+
+### Using the arc.open() function to open the file geodatabase and printing the contents for inspection
+
+getwd()
+
+data_dir <- "C:/Users/ja090/Desktop/Files/JHU/SU25_STATS/Testing_COVID/testing_covid_data/Data"
+
+gis_data <- arc.open(file.path(data_dir, "qa02.gdb"))
+
+print(gis_data)
+
+### Get the metadata for the Feature Class
+### Metadata:
+### Dataset type: ArcGIS Feature Class
+### Path: The relative path to the Feature Class
+### Fields: List of available fields in the Feature Class. 86 total fields are included. Common attributes for ArcGIS data types such as OBJECTID, Shape, Shape_Length, and Shape_Area are included. Also, a diverse collection of string, double, and integer data types are provided in the Feature Class.
+### Extent: Bounding box including xmin, ymin, xmax, and ymax encapsulating the total extent for this Feature Class.
+### Geometry type: Polygon feature class. This is representing the county level administrative boundaries of the United States.
+### Projection: WGS 1984 Web Mercator Auxiliary Sphere projection and WKID code (3857)
+### Printing the metadata
+
+us_counties <- arc.open(file.path(data_dir, "qa02.gdb", "USCounties_Cases"))
+
+print(us_counties)
+```
+
+```{r Task 3 - Read the Covid-19 Feature Class as a Spatial R Dataframe}
+
+### Creating an initial data frame
+### Converting the new data frame to an R spatial data frame with the arc.data2sf() function
+
+us_counties_df <- arc.select(us_counties)
+
+us_counties_sf <- arc.data2sf(us_counties_df)
+
+## Using the head() function to inspect the first six rows of this new spatial data frame
+
+head(us_counties_sf)
+```
+
+```{r Task 4 - Ridge Plot for County Confirmed divided by County Population per 100,000 vs Majority Race}
+### Create a Ridge Plot
+### Utilizing the '$' operator to access the data frame directly and manipulate the specific columns in the spatial data frame
+### Utilizing ggplot and ggridges to compare the distribution for the main demographic groups
+### Setting the 'x' as the confirmed cases per 100,000 residents, and the 'y' for each main demographic group to assess the impact of COVID-19 across the US population
+
+us_counties_sf$cases_per_100k <- (us_counties_sf$Confirmed / us_counties_sf$TotalPop * 100000)
+
+ggplot(us_counties_sf, aes(x = cases_per_100k,
+                           y = Majority_Race,
+                           fill = Majority_Race)) +
+  ggridges::geom_density_ridges(alpha = 0.5, scale = 0.7) +
+  theme_minimal() +
+  labs(title = "COVID-19 Cases",
+       x = "Cases per 100k",
+       y = "Majority Group") +
+  theme(legend.position = "none")
+```
+
+```{r Task 5 - Perform t-tests for Three Demographics}
+
+### Compare whether the Confirmed Case distributions for Asian, Black, and/or Non-Hispanic White are similar
+### Compare Confirmed Case for Asian and Black
+### Filtering the data for confirmed cases for each demographic group
+### Utilizing the '$' operator to access specific records in the data frame and the '==' operator in a query to filter to each respective demographic group
+
+cases_asian_pop <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == 'Asian']
+
+cases_black_pop <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == 'Black or African American']
+
+cases_nhwhite_pop <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == 'Non-Hispanic White']
+
+### Creating a variable to be stored comparing the mean values for the confirmed cases of the Asian and Black demographics
+### Printing the result from t-test to evaluate the statistics
+
+ttest_asianpop_blackpop <- t.test(cases_asian_pop, 
+                                  cases_black_pop, 
+                                  alternative = "two.sided",
+                                  var.equal = F)
+print(ttest_asianpop_blackpop)
+
+### Creating a second variable to be stored comparing the mean values for the confirmed cases of the Asian and Non-Hispanic White demographics
+### Printing the result from t-test to evaluate the statistics
+
+ttest_asianpop_nhwhitepop <- t.test(cases_asian_pop,
+                                    cases_nhwhite_pop,
+                                    alternative = "two.sided",
+                                    var.equal = F)
+print(ttest_asianpop_nhwhitepop)
+
+### Creating a variable to be stored comparing the mean values for the confirmed cases of the Black and Non-Hispanic White demographics
+### Printing the result from t-test to evaluate the statistics
+
+ttest_blackpop_nhwhitepop <- t.test(cases_black_pop,
+                                    cases_nhwhite_pop,
+                                    alternative = "two.sided",
+                                    var.equal = F)
+print(ttest_blackpop_nhwhitepop)
+```
+```{r Results}
+## Based on the results from the t-test the two iterations displaying significant differences is the comparison between the Asian and Black or African American population groups, and the Black or African American and Non-Hispanic White population groups.
+## The first example, there is quite a significant difference in the t-score and the p-value. This indicates that the mean values associated between these groups differ and the probability this is due to random chance is unlikely.
+## The second example, there is more of a significant difference in the t-score and the p-value. This indicates that the mean values are quite different between these two groups, and the p-value indicates this observation is unlikely due to random chance.
+## The most similar groups in terms of impact from COVID-19 are the Asian and Non-Hispanic White population, as these metrics are closer to 0, which indicates there is more similarity in the distribution of the mean values.
+## Overall, these tests indicate that the Black or African American group were more severely impacted from COVID-19 when we compare both the ridge plots and the comparative t-tests.
+```
+
+```{r Task 6 - Perform t-tests for All Demographics}
+
+### The demographic groups stored in a vector 'pop_groups'
+
+pop_groups <- c("Asian", 
+            "Black or African American", 
+            "Non-Hispanic White", 
+            "Hispanic or Latino", 
+            "Native American(Including AK)")
+
+## Setting the arguments for the matrix
+## Rows and columns set using the length() function, which is designed to be 5 rows and 5 columns based on the previous list
+
+pmatrix <- matrix(NA, 
+                  nrow = length(pop_groups), 
+                  ncol = length(pop_groups),
+                  dimnames = list(pop_groups, pop_groups))
+
+## For loop created for iterating over all of the combinations
+## Utilizing the combn() function to generate all possible combinations
+## Establishing the groups to be paired
+
+for (pair in combn(pop_groups, 2, simplify = F)) {
+  group1 <- pair[1]
+  group2 <- pair[2]
+  ## Creating two variables to store values for the majority demographic group in each US county
+  vals1 <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == group1]
+  vals2 <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == group2]
+  ## Checking that the values for each group are sufficient to perform the t-test as the requirement is two
+  ## Performs the t-test and stores the p-value for each demographic group
+  if (length(vals1) >= 2 && length(vals2) >= 2) {
+    ttest_result <- t.test(vals1, vals2, alternative = "two.sided", var.equal = F)
+    pmatrix[group1, group2] <- ttest_result$p.value
+    pmatrix[group2, group1] <- ttest_result$p.value
+  }
+}
+diag(pmatrix) <- 1
+print(round(pmatrix, 3))
+```
