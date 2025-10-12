@@ -13,7 +13,7 @@ set.seed(1)
 
 ```
 
-```{r Task 1 - Import Necessary Packages - 5 Points}
+```{r Task 1 - Import Necessary Packages}
 
 ### Import Packages: arcgisbinding, sf, ggridges, ggplot2, reshape2
 
@@ -125,7 +125,9 @@ ttest_blackpop_nhwhitepop <- t.test(cases_black_pop,
                                     var.equal = F)
 print(ttest_blackpop_nhwhitepop)
 ```
+
 ```{r Results}
+
 ## Based on the results from the t-test the two iterations displaying significant differences is the comparison between the Asian and Black or African American population groups, and the Black or African American and Non-Hispanic White population groups.
 ## The first example, there is quite a significant difference in the t-score and the p-value. This indicates that the mean values associated between these groups differ and the probability this is due to random chance is unlikely.
 ## The second example, there is more of a significant difference in the t-score and the p-value. This indicates that the mean values are quite different between these two groups, and the p-value indicates this observation is unlikely due to random chance.
@@ -158,11 +160,8 @@ pmatrix <- matrix(NA,
 for (pair in combn(pop_groups, 2, simplify = F)) {
   group1 <- pair[1]
   group2 <- pair[2]
-  ## Creating two variables to store values for the majority demographic group in each US county
   vals1 <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == group1]
   vals2 <- us_counties_sf$cases_per_100k[us_counties_sf$Majority_Race == group2]
-  ## Checking that the values for each group are sufficient to perform the t-test as the requirement is two
-  ## Performs the t-test and stores the p-value for each demographic group
   if (length(vals1) >= 2 && length(vals2) >= 2) {
     ttest_result <- t.test(vals1, vals2, alternative = "two.sided", var.equal = F)
     pmatrix[group1, group2] <- ttest_result$p.value
